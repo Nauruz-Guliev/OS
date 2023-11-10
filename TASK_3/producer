@@ -1,0 +1,18 @@
+#!/bin/python3
+
+import random
+import time
+
+def generate_expression():
+    x = random.randint(1, 9)
+    y = random.randint(1, 9)
+    operators = ['+', '-', '*', '/']
+    operator = random.choice(operators)
+    expression = f"{x} {operator} {y}"
+    return expression
+
+N = random.randint(120, 180)
+for _ in range(N):
+    expression = generate_expression()
+    print(expression)
+    time.sleep(1)
