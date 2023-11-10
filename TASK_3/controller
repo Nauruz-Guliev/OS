@@ -1,0 +1,63 @@
+#!/bin/python3
+import subprocess as sp
+import signal as sg
+import os
+
+pipe1_read, pipe1_write = os.pipe()
+pipe0_read, pipe0_write = os.pipe()
+pipe2_read, pipe2_write = os.pipe()
+
+def signal_handler(s, f):
+    print("Produced:", count)
+
+def read_data(pipe):
+    data = b""
+    while True:
+        sign = os.read(pipe, 1)
+        data += sign
+        if sign == b"\n":
+            return data
+        if sign == b"":
+            return -1
+
+def fork_process():
+    new_child = os.fork()
+    if new_child < 0:
+        return fork_process()
+    return new_child
+
+child_process = fork_process()
+
+if child_process == 0:
+    os.dup2(pipe1_write, 1)
+    os.execl("producer", "producer")
+
+os.close(pipe1_write)
+
+child_process = fork_process()
+
+if child_process == 0:
+    os.dup2(pipe0_read, 0)
+    os.dup2(pipe2_write, 1)
+    os.execl("/usr/bin/bc", "bc")
+
+os.close(pipe0_read)
+os.close(pipe2_write)
+
+sg.signal(signal.SIGUSR1, signal_handler)
+
+count = 0
+
+while True:
+    data = read_data(pipe1_read)
+    if data == -1:
+        break
+
+    os.write(pipe0_write, data)
+
+    result = read_data(pipe2_read)
+
+    count += 1
+    print("Expression:", data.decode().strip(), "=", result.decode().strip())
+
+os.kill(os.getpid(), signal.SIGUSR1)
