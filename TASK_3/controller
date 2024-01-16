@@ -1,63 +1,62 @@
-#!/bin/python3
-import subprocess as sp
-import signal as sg
 import os
+import signal
+import select
 
-pipe1_read, pipe1_write = os.pipe()
-pipe0_read, pipe0_write = os.pipe()
-pipe2_read, pipe2_write = os.pipe()
+produced = 0
 
-def signal_handler(s, f):
-    print("Produced:", count)
 
-def read_data(pipe):
-    data = b""
-    while True:
-        sign = os.read(pipe, 1)
-        data += sign
-        if sign == b"\n":
-            return data
-        if sign == b"":
-            return -1
+def signal_handler(signum, frame):
+    global produced
+    if signum == signal.SIGUSR1:
+        print(f"Produced: {produced}")
 
-def fork_process():
-    new_child = os.fork()
-    if new_child < 0:
-        return fork_process()
-    return new_child
 
-child_process = fork_process()
+def main():
+    global produced
 
-if child_process == 0:
-    os.dup2(pipe1_write, 1)
-    os.execl("producer", "producer")
+    signal.signal(signal.SIGUSR1, signal_handler)
 
-os.close(pipe1_write)
+    pipe1_0, pipe0_2, pipe2_0 = os.pipe(), os.pipe(), os.pipe()
 
-child_process = fork_process()
+    process1 = os.fork()
 
-if child_process == 0:
-    os.dup2(pipe0_read, 0)
-    os.dup2(pipe2_write, 1)
-    os.execl("/usr/bin/bc", "bc")
+    if process1 == 0:
+        os.close(pipe1_0[0])
+        os.dup2(pipe1_0[1], 1)
+        os.execl("/usr/bin/python3", "/usr/bin/python3", "./producer.py")
+    else:
+        os.close(pipe1_0[1])
+        process2 = os.fork()
 
-os.close(pipe0_read)
-os.close(pipe2_write)
+        if process2 == 0:
+            os.close(pipe0_2[1])
+            os.close(pipe2_0[0])
+            os.dup2(pipe0_2[0], 0)
+            os.dup2(pipe2_0[1], 1)
+            os.execl("/usr/bin/bc", "bc")
 
-sg.signal(signal.SIGUSR1, signal_handler)
+        else:
+            results = []
 
-count = 0
+            os.close(pipe0_2[0])
+            os.close(pipe2_0[1])
 
-while True:
-    data = read_data(pipe1_read)
-    if data == -1:
-        break
+            while True:
+                res_list, _, _ = select.select([pipe1_0[0]], [], [], 1)
+                if res_list:
+                    expression = os.read(pipe1_0[0], 100).decode("utf-8").strip()
+                    if not expression:
+                        break
 
-    os.write(pipe0_write, data)
+                    os.write(pipe0_2[1], expression.encode("utf-8") + b"\n")
+                    produced += 1
+                    result = os.read(pipe2_0[0], 100).decode("utf-8").strip()
+                    results.append((expression, result))
 
-    result = read_data(pipe2_read)
+                for expression, result in results:
+                    print(f"{expression} = {result}")
+                results = []
 
-    count += 1
-    print("Expression:", data.decode().strip(), "=", result.decode().strip())
 
-os.kill(os.getpid(), signal.SIGUSR1)
+if __name__ == "__main__":
+    main()
