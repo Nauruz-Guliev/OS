@@ -1,18 +1,23 @@
-#!/bin/python3
-
 import random
 import time
 
-def generate_expression():
+
+def generate_arithmetic_ex():
     x = random.randint(1, 9)
     y = random.randint(1, 9)
-    operators = ['+', '-', '*', '/']
-    operator = random.choice(operators)
-    expression = f"{x} {operator} {y}"
-    return expression
+    operator = random.choice(['+', '-', '*', '/'])
+    return f"{x} {operator} {y}"
 
-N = random.randint(120, 180)
-for _ in range(N):
-    expression = generate_expression()
-    print(expression)
-    time.sleep(1)
+
+def main():
+    random.seed()
+    n = random.randint(120, 180)
+
+    for _ in range(n):
+        expression = generate_arithmetic_ex()
+        print(expression, flush=True)
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()
